@@ -1,0 +1,15 @@
+---
+
+- hosts: 192.168.1.10
+  gather_facts: False
+  roles:
+    - role: linux-install-moodle
+      wwwroot: http://moodle.niredomeinua.eus
+      wwwroothttps: https://moodle.niredomeinua.eus
+      dbpass: 'MOODLEDBPASSWORD'
+      fullname: "Moodle 20/21"
+      shortname: "moodle2021"
+      adminuser: nireadmin
+      adminpass: AdminPASAHITZA
+      adminemail: admin@niredomeinua.eus
+      MoodleLocalIP: 192.168.1.10

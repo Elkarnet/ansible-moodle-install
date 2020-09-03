@@ -1,0 +1,248 @@
+---
+# tasks file for linux-install-moodle
+   - include_role:
+        name: linux-install-basic
+
+   - include_role:
+        name: linux-install-apache2
+
+
+   - name: DirectoryIndex gehitu index.php
+     lineinfile: 
+       dest: /etc/apache2/mods-available/dir.conf
+       regexp: '^(.*)DirectoryIndex(.*)$' 
+       line: 'DirectoryIndex index.php index.html index.cgi index.pl index.xhtml index.htm # NIRE-ERAKUNDEA'
+       backrefs: yes
+
+   - name: UTF-8 charset konfiguratu
+     lineinfile: 
+       dest: /etc/apache2/conf-available/charset.conf
+       regexp: '^(.*)AddDefaultCharset UTF-8(.*)$' 
+       line: 'AddDefaultCharset UTF-8'
+       backrefs: yes
+
+
+   - name: inork karpetak zerrendendatu -list- ez ditzan babestu
+     blockinfile:
+       dest: /etc/apache2/sites-available/000-default.conf
+       block: |
+
+         <Directory /var/www/html/>  # NIRE-ERAKUNDEA
+            Options -Indexes +FollowSymLinks +MultiViews
+            AllowOverride None
+            Require all granted
+         </Directory>
+         AcceptPathInfo on
+
+       insertbefore: "</VirtualHost>"
+
+
+   - name: install basic packages
+     apt:
+         name: '{{ item }}'
+         state: latest
+     with_items:
+      - unzip
+      - ghostscript
+      - aspell
+      - graphviz
+      - php7.3
+      - php7.3-curl
+      - php7.3-gd
+      - php7.3-intl
+      - php7.3-ldap
+      - php7.3-mysql
+      - php7.3-pspell
+      - php7.3-xml
+      - php7.3-xmlrpc
+      - php7.3-zip
+      - php7.3-mbstring
+      - php7.3-soap
+      - unoconv
+      - clamav
+      - tcpdump
+      - rename
+
+
+   - name: Begiratu ea composer lehendik instalatuta dagoen
+     stat: path=/usr/local/bin/composer
+     register: check_composer
+
+   - name: copy ntp cron script
+     script: "{{ role_path }}/files/install-composer.sh"
+     when: check_composer.stat.exists == false
+
+   - name: Install moosh
+     script: "{{ role_path }}/files/install-moosh.sh"
+
+
+   - include_role:
+        name: linux-install-mysql
+
+   - name: Create MYSQL database for Moodle
+     mysql_db:
+       name: moodledb
+       state: present
+
+   - name: Create MYSQL user for Moodle
+     mysql_user:
+       name: moodleuser
+       password: "{{ dbpass }}"
+       priv: "moodledb.*:SELECT,INSERT,UPDATE,DELETE,CREATE,CREATE TEMPORARY TABLES,DROP,INDEX,ALTER,LOCK TABLES"
+       state: present
+   
+   - name: Begiratu ea composer lehendik instalatuta dagoen
+     stat: path=/var/moodledata
+     register: check_moodle
+
+   - name: restart mysql
+     service: name=mysql
+              enabled=yes
+              state=restarted
+
+
+   - name: Moodle deskargatu Git bidez
+     script: "{{ role_path }}/files/download_install_moodle.sh"
+     when: check_moodle.stat.exists == false
+
+
+   - name: Moodle instalazioa martxan jarri
+     shell: /usr/bin/php admin/cli/install.php --lang=en --wwwroot="{{ wwwroot }}" --dataroot=/var/moodledata --dbtype=mariadb --dbname=moodledb --dbuser=moodleuser --dbpass="{{ dbpass }}" --fullname="{{ fullname }}" --shortname="{{ shortname }}" --adminuser="{{ adminuser }}"  --adminpass="{{ adminpass }}" --adminemail="{{ adminemail }}"  --non-interactive --agree-license
+     args:
+       chdir: /var/www/html
+
+
+   - name: restart mysql
+     service: name=mysql
+              enabled=yes
+              state=restarted
+
+   - name: restart apache2
+     service: name=apache2
+              enabled=yes
+              state=restarted
+
+
+   - name: Baimenak ondo daudela ziurtatu
+     script: "{{ role_path }}/files/baimenak_ondo_jarri.sh"
+
+
+   - name: www-data erabiltzailearen crontab konfiguratu
+     copy:
+       src: "{{ role_path }}/files/crontab-www-data"
+       dest: /var/spool/cron/crontabs/www-data
+       owner: www-data
+       group: crontab
+       mode: 0600
+
+
+   - name: Emailak ez bidaltzeko instalazioa balidatu arte, gero kendu
+     lineinfile:
+       dest: /var/www/html/config.php
+       insertbefore: '^(.*)require_once(.*)$'
+       line: '$CFG->noemailever = true; // NOT FOR PRODUCTION SERVERS!'
+
+   - name: Aldatu PHP balioa upload_max_filesize
+     lineinfile:
+       dest: /etc/php/7.3/apache2/php.ini
+       regexp: '^(.*)upload_max_filesize(.*)$'
+       line: 'upload_max_filesize = 400M'
+       backrefs: yes
+
+   - name: Aldatu PHP balioa post_max_size
+     lineinfile:
+       dest: /etc/php/7.3/apache2/php.ini
+       regexp: '^(.*)post_max_size(.*)$'
+       line: 'post_max_size = 400M'
+       backrefs: yes
+
+   - name: Aldatu $CFG->pathtodu
+     lineinfile:
+       dest: /var/www/html/config.php
+       line: "$CFG->pathtodu = '/usr/bin/du';"
+       insertbefore: '^(.*)require_once(.*)$'
+
+   - name: Aldatu $CFG->aspellpath
+     lineinfile:
+       dest: /var/www/html/config.php
+       line: "$CFG->aspellpath = '/usr/bin/aspell';"
+       insertbefore: '^(.*)require_once(.*)$'
+
+   - name: Aldatu $CFG->pathtodot
+     lineinfile:
+       dest: /var/www/html/config.php
+       line: "$CFG->pathtodot = '/usr/bin/dot';"
+       insertbefore: '^(.*)require_once(.*)$'
+
+   - name: Aldatu $CFG->pathtogs
+     lineinfile:
+       dest: /var/www/html/config.php
+       line: "$CFG->pathtogs = '/usr/bin/gs';"
+       insertbefore: '^(.*)require_once(.*)$'
+
+   - name: Aldatu $CFG->pathtounoconv
+     lineinfile:
+       dest: /var/www/html/config.php
+       line: "$CFG->pathtounoconv = '/usr/bin/unoconv';"
+       insertbefore: '^(.*)require_once(.*)$'
+
+   - include_role:
+        name: linux-optimize-apache-php
+
+   - name: Apache prefork konfiguratu
+     copy:
+       src: "{{ role_path }}/files/mpm_prefork.conf"
+       dest: /etc/apache2/mods-available/mpm_prefork.conf
+       owner: root
+       group: root
+       mode: 0644
+
+   - name: install memcached php
+     apt:
+        name: '{{ item }}'
+        state: latest
+     with_items:
+      - php
+      - php-memcached
+
+   - name: restart apache2
+     service: name=apache2
+              enabled=yes
+              state=restarted
+
+   - name: /root/scripts karpeta sortu
+     shell: mkdir -p /root/scripts 
+
+   - name: moodle_upgrade_LTS39.sh scripta kopiatu
+     copy:
+       src: "{{ role_path }}/files/moodle_upgrade_LTS39.sh"
+       dest: /root/scripts/moodle_upgrade_LTS39.sh
+       owner: root
+       group: root
+       mode: 0700
+
+   - name: crontab-ean konfiguratu beharreko Backup scripta kopiatu
+     copy:
+       src: "{{ role_path }}/files/moodle_backup.sh"
+       dest: /root/scripts
+       owner: root
+       group: root
+       mode: 0700
+
+   - name: 
+     copy:
+       src: "{{ role_path }}/files/crontab-moodlebackup"
+       dest: /etc/cron.d/crontab-moodlebackup
+       owner: root
+       group: root
+       mode: 0644
+
+
+   - name: Sortu karpeta backupak lagatzeko
+     file:
+       path: /moodlebackup/moodlecoursebackup
+       state: directory
+       owner: www-data
+       group: www-data
+       mode: 0775
+

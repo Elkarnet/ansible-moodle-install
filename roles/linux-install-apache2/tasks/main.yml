@@ -1,0 +1,37 @@
+---
+# tasks file for linux-install-apache2
+
+   - name: install Apache
+     apt:
+        name: '{{ item }}'
+        state: latest
+     with_items:
+      - apache2
+
+
+   - name: Apachek bera eta sistema eragileari buruz ematen duen informazioa gutxitu 
+     lineinfile:
+       dest: /etc/apache2/conf-available/security.conf
+       regexp: '^(.*)ServerTokens OS(.*)$'
+       line: 'ServerTokens Prod'
+       backrefs: yes
+
+
+   - name: install memcached
+     apt:
+        name: memcached
+        state: latest
+
+   - name: Memcached memoria 128M jarri
+     lineinfile:
+       dest: /etc/memcached.conf
+       regexp: '^-m 64(.*)$'
+       line: '-m 128'
+       backrefs: yes
+
+   - name: restart memcached
+     service: name=memcached
+              enabled=yes
+              state=restarted
+
+

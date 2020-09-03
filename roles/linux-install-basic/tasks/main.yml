@@ -1,0 +1,197 @@
+---
+# tasks file for linux-install-basic
+
+  - lineinfile:
+      path: /etc/apt/sources.list
+      state: absent
+      regexp: '^(.*)deb cdrom(.*)'
+
+  - include_role:
+      name: linux-update-upgrade
+
+  - name: install basic packages
+    apt:
+        name: '{{ item }}'
+        state: latest
+    with_items:
+     - ntpdate
+     - htop
+     - net-tools
+     - git
+     - unzip
+     - rsync
+     - fail2ban
+     - curl
+     - wget
+     - unattended-upgrades
+     - molly-guard
+     - logwatch
+     - mailutils
+     - geoip-bin
+     - tcpdump
+     - sudo
+
+# Bloke honetan bi erabiltzaile sortzen ditugu, bata admin01 eta bestea admin02. Aldatu adibidean datozen datuak 
+# eta zure erakundeko erabiltzaileen datuak jarri. Erabiltzaile hauek sudoers rola izango dute zerbitzarian
+
+#  - name: Create a login user
+#    user:
+#     name: "{{ item }}"
+#     groups: sudo   # Empty by default.
+#     state: present
+#     shell: /bin/bash       # Defaults to /bin/bash
+#     system: no             # Defaults to no
+#     createhome: yes        # Defaults to yes
+#    with_items:
+#         - admin01
+#         - admin02
+
+
+# Admin erabiltzaileen gako publikoak bere elkuan jartzen ditugu
+#  - name: Ensures /home/admin01/.ssh  dir exists
+#    file: path=/home/admin01/.ssh  state=directory
+#
+#  - name: Ensures /home/admin02/.ssh  dir exists
+#    file: path=/home/admin02/.ssh  state=directory
+#
+# Erabiltzaileen authorized_keys files karpetan kopiatu behar da hau egin aurretik
+#  - name: copy admin01's public key
+#    copy:
+#      src: "{{ role_path }}/files/authorized_keys_admin01"
+#      dest: /home/admin01/.ssh/authorized_keys
+#      owner: admin01
+#      group: admin01
+#      mode: 0644
+#
+#  - name: copy admin02's public key
+#    copy:
+#      src: "{{ role_path }}/files/authorized_keys_admin02"
+#      dest: /home/admin02/.ssh/authorized_keys
+#      owner: admin02
+#      group: admin02
+#      mode: 0644
+
+  - name: Konfiguratu ssh, bakarrik passpharse erabiliaz konekatu
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: '^(.*)PasswordAuthentication yes(.*)$'
+      line: 'PasswordAuthentication no'
+      backrefs: yes
+
+  - name: Konfiguratu ssh, bakarrik passpharse erabiliaz konekatu
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: '^(.*)PubkeyAuthentication(.*)$'
+      line: 'PubkeyAuthentication yes'
+      backrefs: yes
+
+  - name: restart sshd
+    service: name=ssh
+             enabled=yes
+             state=restarted
+
+
+  - name: copy ntp cron script
+    copy:
+      src: "{{ role_path }}/files/update-time.sh"
+      dest: /etc/cron.daily/ 
+      owner: root
+      group: root
+      mode: 0775
+
+  - name: copy fail2ban ssh conf
+    copy:
+      src: "{{ role_path }}/files/defaults-debian.conf"
+      dest:  /etc/fail2ban/jail.d/ 
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: Konfiguratu fail2ban ignoreip parametroa
+    lineinfile:
+      dest: /etc/fail2ban/jail.conf
+      regexp: '^(.*)ignoreip =(.*)$'
+      # parametro honetan zure sare pribatua gehitu dezakezu beti onartua izan dadin
+      line: 'ignoreip = ignoreip = 127.0.0.1/8 '
+      backrefs: yes
+
+
+  # konfigurazio fitxategi honetan SSH konexioan nondik onartuko diren konfiguratuko dugu. 
+  # Hasiera batean Espainiako IP publikoetatik bakarrik onartzen dira, baina hori geohostdey.conf fitxategian konfiguratzen da
+  - name: copy fail2ban geohost conf
+    copy:
+      src: "{{ role_path }}/files/geohostsdeny.conf"
+      dest: /etc/fail2ban/action.d/
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: Konfiguratu unattended-upgrades
+    lineinfile:
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: '^(.*){distro_codename}-updates(.*)$'
+      line: '        "${distro_id}:${distro_codename}-updates";'
+      backrefs: yes
+
+  - name: restart fail2ban
+    service: name=fail2ban
+             enabled=yes
+             state=restarted
+
+
+  - name: Konfiguratu unattended-upgrades
+    lineinfile:
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: '^(.*)Unattended-Upgrade::Mail(.*)$'
+      # zure email helbidea jarri eta horrela eguneraketen informazioa jasoko dezu
+      line: 'Unattended-Upgrade::Mail "zurehelbidea@zuredomeinua.eus";'
+      backrefs: yes
+
+  - name: Konfiguratu unattended-upgrades
+    lineinfile:
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: '^(.*)Unattended-Upgrade::Automatic-Reboot (.*)$'
+      # Behar duenetan, bera bakarrik berrabiaraziko da. Hurrengo atalean konfiguratzen da berrabiarazteko ordua (07:00)
+      line: 'Unattended-Upgrade::Automatic-Reboot "true";'
+      backrefs: yes
+
+  - name: Konfiguratu unattended-upgrades
+    lineinfile:
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: '^(.*)Unattended-Upgrade::Automatic-Reboot-Time(.*)$'
+      line: 'Unattended-Upgrade::Automatic-Reboot-Time "07:00";'
+      backrefs: yes
+
+  - name: Konfiguratu logwatch
+    lineinfile:
+      dest: /usr/share/logwatch/default.conf/logwatch.conf
+      regexp: '^Output(.*)$'
+      line: 'Output = mail'
+      backrefs: yes
+
+  - name: Konfiguratu logwatch
+    lineinfile:
+      dest: /usr/share/logwatch/default.conf/logwatch.conf
+      regexp: '^Format(.*)$'
+      line: 'Format = text'
+      backrefs: yes
+
+  - name: Konfiguratu logwatch
+    lineinfile:
+      dest: /usr/share/logwatch/default.conf/logwatch.conf
+      regexp: '^MailTo(.*)$'
+      line: 'MailTo = zurehelbidea@zuredomeinua.eus'
+      backrefs: yes
+
+  - name: Konfiguratu logwatch
+    lineinfile:
+      dest: /usr/share/logwatch/default.conf/logwatch.conf
+      regexp: '^Detail(.*)$'
+      line: 'Detail = high'
+      backrefs: yes
+
+  - name: restart unattended-upgrades
+    service: name=unattended-upgrades
+             enabled=yes
+             state=restarted
+

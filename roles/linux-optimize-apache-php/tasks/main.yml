@@ -1,0 +1,33 @@
+---
+# tasks file for linux-install-moodle-02
+
+   - name: Opcache konfigurazioa
+     blockinfile:
+       dest: /etc/php/7.3/apache2/php.ini
+       block: |
+           opcache.enable = 1
+           opcache.memory_consumption = 128
+           opcache.max_accelerated_files = ​ 8000
+           opcache.revalidate_freq = 2
+           ; Requerido para Moodle
+           opcache.use_cwd = 1
+           opcache.validate_timestamps = 1
+           opcache.save_comments = 1
+           opcache.enable_file_override = 0
+           ; interesgarriak izan daitezke
+           ; Si tenemos scripts en php y los lanzamos a modo cliente puede que aceleremos su carga activando el siguiente parametro
+           ;opcache.enable_cli=0
+           ; Redireccionar el log del cache para ver si algo esta fallando
+           ;opcache.error_log=
+           ; Si tenemos alguna carpeta que no nos interese que nos cachee los scripts que tiene
+           ;opcache.blacklist_filename=
+
+       insertafter: "[opcache]"
+
+   - name: restart apache2
+     service: name=apache2
+              enabled=yes
+              state=restarted
+
+   - name: Apache2buddy tresna instalatu
+     script: "{{ role_path }}/files/install-apache2buddy.sh"

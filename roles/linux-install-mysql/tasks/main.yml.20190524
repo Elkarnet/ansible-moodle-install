@@ -1,0 +1,52 @@
+---
+# tasks file for linux-install-mysql
+
+   - name: install basic packages
+     apt:
+         name: '{{ item }}'
+         state: latest
+     with_items:
+      - mysql-server
+      - mysql-client
+      - python-mysqldb
+
+
+   - name: Mysql client character set UTF8mb4
+     lineinfile:
+       dest: /etc/mysql/mariadb.conf.d/50-client.cnf
+       regexp: '^(.*)default-character-set(.*)$'
+       line: 'default-character-set = utf8mb4'
+       backrefs: yes
+
+
+   - name: Mysql server character set UTF8mb4
+     lineinfile:
+       dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+       regexp: '^(.*)character-set-server(.*)$'
+       line: 'character-set-server = utf8mb4'
+       backrefs: yes
+
+   - name: Mysql server collation
+     lineinfile:
+       dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+       regexp: '^(.*)collation-server(.*)$'
+       line: 'collation-server = utf8mb4_unicode_ci'
+       backrefs: yes
+
+   - name: Mysql skip character set, aurreko lerroaren ondoren sartu
+     lineinfile:
+       dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+       insertafter: '^(.*)collation-server = utf8mb4_unicode_ci(.*)$'
+       line: 'skip-character-set-client-handshake'
+
+   - name: innodb konfigurazio lerroak gehitu
+     blockinfile:
+       dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+       block: |
+
+          innodb_file_format = Barracuda
+          innodb_file_per_table = 1
+          innodb_large_prefix
+
+       insertafter: "# * InnoDB"
+

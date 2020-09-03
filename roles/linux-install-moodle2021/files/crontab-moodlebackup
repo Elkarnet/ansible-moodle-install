@@ -1,0 +1,3 @@
+# m h  dom mon dow   command
+0 6 * * * root /root/scripts/moodle_backup.sh
+
