@@ -1,0 +1,17 @@
+---
+# tasks file for linux-update-upgrade
+
+  - name: Install latest version of unattended-upgrades
+    apt:
+        name: unattended-upgrades
+        state: latest
+
+  - name: Upgrade all packages to the latest version
+    apt:
+        update_cache: yes
+
+  - name: Upgrade all packages to the latest version
+    apt:
+        upgrade: dist
+
+
